@@ -28,6 +28,12 @@ type ResolvedInlineMatch = {
   priority: number;
 };
 
+type FenceMarker = {
+  char: "`" | "~";
+  length: number;
+  indent: number;
+};
+
 const TAG_STYLE_MAP: Record<string, InlineStyle | null> = {
   red: TextStyle.Red,
   orange: TextStyle.Orange,
@@ -96,24 +102,37 @@ export function parseZalouserTextStyles(input: string): { text: string; styles: 
   const lines = input.split("\n");
   const lineStyles: LineStyle[] = [];
   const processedLines: string[] = [];
-  let inCodeBlock = false;
+  let activeFence: FenceMarker | null = null;
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     let line = lines[lineIndex];
     let baseIndent = 0;
 
-    if (/^```/.test(line)) {
-      if (!inCodeBlock && !hasClosingFence(lines, lineIndex + 1)) {
-        processedLines.push(escapeLiteralText(line, escapeMap));
-        inCodeBlock = true;
+    const fence = parseFenceMarker(line);
+    if (fence) {
+      if (!activeFence) {
+        if (!hasClosingFence(lines, lineIndex + 1, fence)) {
+          processedLines.push(escapeLiteralText(line, escapeMap));
+          activeFence = fence;
+          continue;
+        }
+        activeFence = fence;
         continue;
       }
-      inCodeBlock = !inCodeBlock;
-      continue;
+
+      if (isClosingFence(line, activeFence)) {
+        activeFence = null;
+        continue;
+      }
     }
 
-    if (inCodeBlock) {
-      processedLines.push(escapeLiteralText(normalizeCodeBlockLeadingWhitespace(line), escapeMap));
+    if (activeFence) {
+      processedLines.push(
+        escapeLiteralText(
+          normalizeCodeBlockLeadingWhitespace(stripCodeFenceIndent(line, activeFence.indent)),
+          escapeMap,
+        ),
+      );
       continue;
     }
 
@@ -274,13 +293,40 @@ function clampIndent(spaceCount: number): number {
   return Math.min(5, Math.max(1, Math.floor(spaceCount / 2)));
 }
 
-function hasClosingFence(lines: string[], startIndex: number): boolean {
+function hasClosingFence(lines: string[], startIndex: number, fence: FenceMarker): boolean {
   for (let index = startIndex; index < lines.length; index += 1) {
-    if (/^```/.test(lines[index])) {
+    if (isClosingFence(lines[index], fence)) {
       return true;
     }
   }
   return false;
+}
+
+function parseFenceMarker(line: string): FenceMarker | null {
+  const match = line.match(/^([ ]{0,3})(`{3,}|~{3,})(.*)$/);
+  if (!match) {
+    return null;
+  }
+
+  const marker = match[2];
+  const char = marker[0];
+  if (char !== "`" && char !== "~") {
+    return null;
+  }
+
+  return {
+    char,
+    length: marker.length,
+    indent: match[1].length,
+  };
+}
+
+function isClosingFence(line: string, fence: FenceMarker): boolean {
+  const match = line.match(/^([ ]{0,3})(`{3,}|~{3,})[ \t]*$/);
+  if (!match) {
+    return false;
+  }
+  return match[2][0] === fence.char && match[2].length >= fence.length;
 }
 
 function escapeLiteralText(input: string, escapeMap: string[]): string {
@@ -375,4 +421,16 @@ function normalizeCodeBlockLeadingWhitespace(line: string): string {
   return line.replace(/^[ \t]+/, (leadingWhitespace) =>
     leadingWhitespace.replace(/\t/g, "\u00A0\u00A0\u00A0\u00A0").replace(/ /g, "\u00A0"),
   );
+}
+
+function stripCodeFenceIndent(line: string, indent: number): string {
+  let consumed = 0;
+  let cursor = 0;
+
+  while (cursor < line.length && consumed < indent && line[cursor] === " ") {
+    cursor += 1;
+    consumed += 1;
+  }
+
+  return line.slice(cursor);
 }

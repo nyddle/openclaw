@@ -48,6 +48,20 @@ describe("parseZalouserTextStyles", () => {
     });
   });
 
+  it("treats tilde fences as literal code blocks", () => {
+    expect(parseZalouserTextStyles("~~~bash\n*cmd*\n~~~")).toEqual({
+      text: "*cmd*",
+      styles: [],
+    });
+  });
+
+  it("treats fences indented under list items as literal code blocks", () => {
+    expect(parseZalouserTextStyles("  ```\n*cmd*\n  ```")).toEqual({
+      text: "*cmd*",
+      styles: [],
+    });
+  });
+
   it("keeps unmatched fences literal", () => {
     expect(parseZalouserTextStyles("```python")).toEqual({
       text: "```python",
