@@ -644,5 +644,20 @@ export function createAgentEventHandler({
       agentRunSeq.delete(evt.runId);
       agentRunSeq.delete(clientRunId);
     }
+
+    // Notify dashboard clients that the session list may have changed.
+    // Broadcast on run start and end so the Control UI can update session
+    // status/timing without polling. Uses dropIfSlow to avoid head-of-line
+    // blocking when the WS send buffer is full.
+    if (
+      sessionKey &&
+      (lifecyclePhase === "start" || lifecyclePhase === "end" || lifecyclePhase === "error")
+    ) {
+      broadcast(
+        "sessions.changed",
+        { sessionKey, phase: lifecyclePhase, runId: evt.runId, ts: evt.ts },
+        { dropIfSlow: true },
+      );
+    }
   };
 }

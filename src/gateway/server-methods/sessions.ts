@@ -133,6 +133,24 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     });
     respond(true, result, undefined);
   },
+  /**
+   * Register this WS client to receive `sessions.changed` push events.
+   * The gateway will broadcast `sessions.changed` whenever a session is
+   * created, updated, or ends — clients should refresh their session list
+   * on receipt.
+   *
+   * This is a lightweight acknowledgment call: the gateway broadcasts
+   * `sessions.changed` to ALL connected clients (no per-client filtering),
+   * so clients just need to listen for the event after subscribing.
+   */
+  "sessions.subscribe": ({ respond }) => {
+    respond(true, { subscribed: true }, undefined);
+  },
+
+  "sessions.unsubscribe": ({ respond }) => {
+    respond(true, { subscribed: false }, undefined);
+  },
+
   "sessions.preview": ({ params, respond }) => {
     if (!assertValidParams(params, validateSessionsPreviewParams, "sessions.preview", respond)) {
       return;

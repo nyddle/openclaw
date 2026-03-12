@@ -54,6 +54,8 @@ const BASE_METHODS = [
   "secrets.reload",
   "secrets.resolve",
   "sessions.list",
+  "sessions.subscribe",
+  "sessions.unsubscribe",
   "sessions.preview",
   "sessions.patch",
   "sessions.reset",
@@ -128,5 +130,8 @@ export const GATEWAY_EVENTS = [
   "voicewake.changed",
   "exec.approval.requested",
   "exec.approval.resolved",
+  /** Broadcast whenever a session is created, updated, or ends. Clients can
+   *  subscribe via `sessions.subscribe` and refresh their session list on receipt. */
+  "sessions.changed",
   GATEWAY_EVENT_UPDATE_AVAILABLE,
 ];
