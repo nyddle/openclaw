@@ -165,13 +165,17 @@ export function credentialsMatchResolvedIdentity(
   identity: {
     homeserver: string;
     userId: string;
+    accessToken: string;
   },
 ): stored is MatrixStoredCredentials {
   if (!stored || !identity.homeserver) {
     return false;
   }
   if (!identity.userId) {
-    return stored.homeserver === identity.homeserver;
+    if (!identity.accessToken) {
+      return false;
+    }
+    return stored.homeserver === identity.homeserver && stored.accessToken === identity.accessToken;
   }
   return stored.homeserver === identity.homeserver && stored.userId === identity.userId;
 }
@@ -186,6 +190,7 @@ export function resolveMatrixMigrationAccountTarget(params: {
   const matchingStored = credentialsMatchResolvedIdentity(stored, {
     homeserver: resolved.homeserver,
     userId: resolved.userId,
+    accessToken: resolved.accessToken,
   })
     ? stored
     : null;
