@@ -53,7 +53,6 @@ import {
   pruneLegacyStoreKeys,
   resolveGatewaySessionStoreTarget,
 } from "../session-utils.js";
-import { consumePendingSpawnedWorkspaceOverride } from "../spawned-workspace-overrides.js";
 import { formatForLog } from "../ws-log.js";
 import { waitForAgentJob } from "./agent-job.js";
 import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
@@ -191,9 +190,7 @@ export const agentHandlers: GatewayRequestHandlers = {
       timeout?: number;
       bestEffortDeliver?: boolean;
       label?: string;
-      spawnedBy?: string;
       inputProvenance?: InputProvenance;
-      workspaceDir?: string;
     };
     const senderIsOwner = resolveSenderIsOwnerFromClient(client);
     const cfg = loadConfig();
@@ -207,7 +204,6 @@ export const agentHandlers: GatewayRequestHandlers = {
     let resolvedGroupChannel: string | undefined = normalizedSpawned.groupChannel;
     let resolvedGroupSpace: string | undefined = normalizedSpawned.groupSpace;
     let spawnedByValue: string | undefined;
-    let spawnedWorkspaceSessionKey: string | undefined;
     const inputProvenance = normalizeInputProvenance(request.inputProvenance);
     const cached = context.dedupe.get(`agent:${idem}`);
     if (cached) {
@@ -359,7 +355,6 @@ export const agentHandlers: GatewayRequestHandlers = {
       const sessionId = entry?.sessionId ?? randomUUID();
       const labelValue = request.label?.trim() || entry?.label;
       const sessionAgent = resolveAgentIdFromSessionKey(canonicalKey);
-      spawnedWorkspaceSessionKey = canonicalKey;
       spawnedByValue = canonicalizeSpawnedByForAgent(cfg, sessionAgent, entry?.spawnedBy);
       let inheritedGroup:
         | { groupId?: string; groupChannel?: string; groupSpace?: string }
@@ -397,6 +392,7 @@ export const agentHandlers: GatewayRequestHandlers = {
         providerOverride: entry?.providerOverride,
         label: labelValue,
         spawnedBy: spawnedByValue,
+        spawnedWorkspaceDir: entry?.spawnedWorkspaceDir,
         spawnDepth: entry?.spawnDepth,
         channel: entry?.channel ?? request.channel?.trim(),
         groupId: resolvedGroupId ?? entry?.groupId,
@@ -625,7 +621,7 @@ export const agentHandlers: GatewayRequestHandlers = {
         // Internal-only: allow workspace override for spawned subagent runs.
         workspaceDir: resolveIngressWorkspaceOverrideForSpawnedRun({
           spawnedBy: spawnedByValue,
-          workspaceDir: consumePendingSpawnedWorkspaceOverride(spawnedWorkspaceSessionKey),
+          workspaceDir: sessionEntry?.spawnedWorkspaceDir,
         }),
         senderIsOwner,
       },
