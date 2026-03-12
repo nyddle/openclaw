@@ -1468,6 +1468,31 @@ export function listDescendantRunsForRequester(rootSessionKey: string): Subagent
   );
 }
 
+/**
+ * Returns the most recent SubagentRunRecord for the given child session key,
+ * or null if no run record exists. Used by sessions_list to attach status and
+ * timing data to sessions that are (or were) subagent-managed.
+ */
+export function getSubagentRunByChildSessionKey(
+  childSessionKey: string,
+): SubagentRunRecord | null {
+  const runIds = findRunIdsByChildSessionKeyFromRuns(subagentRuns, childSessionKey);
+  if (runIds.length === 0) {
+    return null;
+  }
+  let latest: SubagentRunRecord | null = null;
+  for (const runId of runIds) {
+    const entry = subagentRuns.get(runId);
+    if (!entry) {
+      continue;
+    }
+    if (!latest || entry.createdAt > latest.createdAt) {
+      latest = entry;
+    }
+  }
+  return latest;
+}
+
 export function initSubagentRegistry() {
   restoreSubagentRunsOnce();
 }

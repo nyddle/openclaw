@@ -7,6 +7,7 @@ import {
   resolveStorePath,
 } from "../../config/sessions.js";
 import { callGateway } from "../../gateway/call.js";
+import { getSubagentRunByChildSessionKey } from "../subagent-registry.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringArrayParam } from "./common.js";
@@ -20,6 +21,7 @@ import {
   resolveInternalSessionKey,
   resolveSandboxedSessionToolContext,
   type SessionListRow,
+  type SessionRunStatus,
   stripToolMessages,
 } from "./sessions-helpers.js";
 
@@ -184,6 +186,31 @@ export function createSessionsListTool(opts?: {
           }
         }
 
+        // Attach subagent run status and timing when a run record exists for
+        // this session key. Use the raw `key` (pre-display) for registry lookup
+        // since the subagent registry stores the original internal session key.
+        const subagentRun = getSubagentRunByChildSessionKey(key);
+        let runStatus: SessionRunStatus | undefined;
+        let runStartedAt: number | undefined;
+        let runEndedAt: number | undefined;
+        let runRuntimeMs: number | undefined;
+        if (subagentRun) {
+          runStartedAt = subagentRun.startedAt;
+          runEndedAt = subagentRun.endedAt;
+          if (runStartedAt !== undefined && runEndedAt !== undefined) {
+            runRuntimeMs = runEndedAt - runStartedAt;
+          }
+          if (subagentRun.endedAt === undefined) {
+            runStatus = "running";
+          } else if (subagentRun.endedReason === "subagent-killed") {
+            runStatus = "killed";
+          } else if (subagentRun.outcome?.status === "ok") {
+            runStatus = "done";
+          } else {
+            runStatus = "failed";
+          }
+        }
+
         const row: SessionListRow = {
           key: displayKey,
           kind,
@@ -213,6 +240,10 @@ export function createSessionsListTool(opts?: {
           lastTo: deliveryTo ?? (typeof entry.lastTo === "string" ? entry.lastTo : undefined),
           lastAccountId,
           transcriptPath,
+          status: runStatus,
+          startedAt: runStartedAt,
+          endedAt: runEndedAt,
+          runtimeMs: runRuntimeMs,
         };
         if (messageLimit > 0) {
           const resolvedKey = resolveInternalSessionKey({

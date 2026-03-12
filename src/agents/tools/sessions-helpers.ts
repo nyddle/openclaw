@@ -44,6 +44,8 @@ export type SessionListDeliveryContext = {
   accountId?: string;
 };
 
+export type SessionRunStatus = "running" | "done" | "failed" | "killed";
+
 export type SessionListRow = {
   key: string;
   kind: SessionKind;
@@ -66,6 +68,14 @@ export type SessionListRow = {
   lastAccountId?: string;
   transcriptPath?: string;
   messages?: unknown[];
+  /** Subagent run lifecycle status. Only present for sessions that have a subagent run record. */
+  status?: SessionRunStatus;
+  /** Unix ms when the subagent run was started (first agent turn began). */
+  startedAt?: number;
+  /** Unix ms when the subagent run ended. */
+  endedAt?: number;
+  /** Total run wall-clock duration in ms (endedAt - startedAt). Only present when both are available. */
+  runtimeMs?: number;
 };
 
 function normalizeKey(value?: string) {
