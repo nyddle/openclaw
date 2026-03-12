@@ -1,8 +1,9 @@
 import {
   DEFAULT_ACCOUNT_ID,
+  isPrivateOrLoopbackHost,
   normalizeAccountId,
   normalizeOptionalAccountId,
-} from "openclaw/plugin-sdk/account-id";
+} from "openclaw/plugin-sdk/matrix";
 import { getMatrixRuntime } from "../../runtime.js";
 import { normalizeResolvedSecretInputString } from "../../secret-input.js";
 import type { CoreConfig } from "../../types.js";
@@ -140,6 +141,40 @@ export function hasReadyMatrixEnvAuth(config: {
   const accessToken = clean(config.accessToken, "matrix.env.accessToken");
   const password = clean(config.password, "matrix.env.password");
   return Boolean(homeserver && (accessToken || (userId && password)));
+}
+
+export function validateMatrixHomeserverUrl(homeserver: string): string {
+  const trimmed = clean(homeserver, "matrix.homeserver");
+  if (!trimmed) {
+    throw new Error("Matrix homeserver is required (matrix.homeserver)");
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("Matrix homeserver must be a valid http(s) URL");
+  }
+
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Matrix homeserver must use http:// or https://");
+  }
+  if (!parsed.hostname) {
+    throw new Error("Matrix homeserver must include a hostname");
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error("Matrix homeserver URL must not include embedded credentials");
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error("Matrix homeserver URL must not include query strings or fragments");
+  }
+  if (parsed.protocol === "http:" && !isPrivateOrLoopbackHost(parsed.hostname)) {
+    throw new Error(
+      "Matrix homeserver must use https:// unless it targets a private or loopback host",
+    );
+  }
+
+  return trimmed;
 }
 
 export function resolveMatrixConfig(
@@ -346,9 +381,7 @@ export async function resolveMatrixAuth(params?: {
   accountId?: string | null;
 }): Promise<MatrixAuth> {
   const { cfg, env, accountId, resolved } = resolveMatrixAuthContext(params);
-  if (!resolved.homeserver) {
-    throw new Error("Matrix homeserver is required (matrix.homeserver)");
-  }
+  const homeserver = validateMatrixHomeserverUrl(resolved.homeserver);
 
   const {
     loadMatrixCredentials,
@@ -361,7 +394,7 @@ export async function resolveMatrixAuth(params?: {
   const cachedCredentials =
     cached &&
     credentialsMatchConfig(cached, {
-      homeserver: resolved.homeserver,
+      homeserver,
       userId: resolved.userId || "",
       accessToken: resolved.accessToken,
     })
@@ -379,7 +412,7 @@ export async function resolveMatrixAuth(params?: {
     if (!userId || !knownDeviceId) {
       // Fetch whoami when we need to resolve userId and/or deviceId from token auth.
       ensureMatrixSdkLoggingConfigured();
-      const tempClient = new MatrixClient(resolved.homeserver, resolved.accessToken);
+      const tempClient = new MatrixClient(homeserver, resolved.accessToken);
       const whoami = (await tempClient.doRequest("GET", "/_matrix/client/v3/account/whoami")) as {
         user_id?: string;
         device_id?: string;
@@ -404,7 +437,7 @@ export async function resolveMatrixAuth(params?: {
     if (shouldRefreshCachedCredentials) {
       await saveMatrixCredentials(
         {
-          homeserver: resolved.homeserver,
+          homeserver,
           userId,
           accessToken: resolved.accessToken,
           deviceId: knownDeviceId,
@@ -417,7 +450,7 @@ export async function resolveMatrixAuth(params?: {
     }
     return {
       accountId,
-      homeserver: resolved.homeserver,
+      homeserver,
       userId,
       accessToken: resolved.accessToken,
       password: resolved.password,
@@ -455,7 +488,7 @@ export async function resolveMatrixAuth(params?: {
 
   // Login with password using the same hardened request path as other Matrix HTTP calls.
   ensureMatrixSdkLoggingConfigured();
-  const loginClient = new MatrixClient(resolved.homeserver, "");
+  const loginClient = new MatrixClient(homeserver, "");
   const login = (await loginClient.doRequest("POST", "/_matrix/client/v3/login", undefined, {
     type: "m.login.password",
     identifier: { type: "m.id.user", user: resolved.userId },
@@ -475,7 +508,7 @@ export async function resolveMatrixAuth(params?: {
 
   const auth: MatrixAuth = {
     accountId,
-    homeserver: resolved.homeserver,
+    homeserver,
     userId: login.user_id ?? resolved.userId,
     accessToken,
     password: resolved.password,

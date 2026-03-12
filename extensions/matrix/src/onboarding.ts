@@ -23,6 +23,7 @@ import {
   getMatrixScopedEnvVarNames,
   hasReadyMatrixEnvAuth,
   resolveScopedMatrixEnvConfig,
+  validateMatrixHomeserverUrl,
 } from "./matrix/client.js";
 import {
   resolveMatrixConfigFieldPath,
@@ -312,14 +313,12 @@ async function runMatrixConfigure(params: {
       message: "Matrix homeserver URL",
       initialValue: existing.homeserver ?? envHomeserver,
       validate: (value) => {
-        const raw = String(value ?? "").trim();
-        if (!raw) {
-          return "Required";
+        try {
+          validateMatrixHomeserverUrl(String(value ?? ""));
+          return undefined;
+        } catch (error) {
+          return error instanceof Error ? error.message : "Invalid Matrix homeserver URL";
         }
-        if (!/^https?:\/\//i.test(raw)) {
-          return "Use a full URL (https://...)";
-        }
-        return undefined;
       },
     }),
   ).trim();

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { MatrixClient } from "../sdk.js";
+import { validateMatrixHomeserverUrl } from "./config.js";
 import { ensureMatrixSdkLoggingConfigured } from "./logging.js";
 import {
   maybeMigrateLegacyStorage,
@@ -21,11 +22,12 @@ export async function createMatrixClient(params: {
 }): Promise<MatrixClient> {
   ensureMatrixSdkLoggingConfigured();
   const env = process.env;
+  const homeserver = validateMatrixHomeserverUrl(params.homeserver);
   const userId = params.userId?.trim() || "unknown";
   const matrixClientUserId = params.userId?.trim() || undefined;
 
   const storagePaths = resolveMatrixStoragePaths({
-    homeserver: params.homeserver,
+    homeserver,
     userId,
     accessToken: params.accessToken,
     accountId: params.accountId,
@@ -39,14 +41,14 @@ export async function createMatrixClient(params: {
 
   writeStorageMeta({
     storagePaths,
-    homeserver: params.homeserver,
+    homeserver,
     userId,
     accountId: params.accountId,
   });
 
   const cryptoDatabasePrefix = `openclaw-matrix-${storagePaths.accountKey}-${storagePaths.tokenHash}`;
 
-  return new MatrixClient(params.homeserver, params.accessToken, undefined, undefined, {
+  return new MatrixClient(homeserver, params.accessToken, undefined, undefined, {
     userId: matrixClientUserId,
     password: params.password,
     deviceId: params.deviceId,

@@ -68,4 +68,19 @@ describe("probeMatrix", () => {
       accountId: "ops",
     });
   });
+
+  it("returns client validation errors for insecure public http homeservers", async () => {
+    createMatrixClientMock.mockRejectedValue(
+      new Error("Matrix homeserver must use https:// unless it targets a private or loopback host"),
+    );
+
+    const result = await probeMatrix({
+      homeserver: "http://matrix.example.org",
+      accessToken: "tok",
+      timeoutMs: 500,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("Matrix homeserver must use https://");
+  });
 });

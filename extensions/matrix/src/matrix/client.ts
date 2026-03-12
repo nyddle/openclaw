@@ -9,6 +9,7 @@ export {
   resolveImplicitMatrixAccountId,
   resolveMatrixAuth,
   resolveMatrixAuthContext,
+  validateMatrixHomeserverUrl,
 } from "./client/config.js";
 export { createMatrixClient } from "./client/create-client.js";
 export {

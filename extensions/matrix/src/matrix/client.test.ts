@@ -6,6 +6,7 @@ import {
   resolveMatrixAuthContext,
   resolveMatrixConfig,
   resolveMatrixConfigForAccount,
+  validateMatrixHomeserverUrl,
 } from "./client.js";
 import * as credentialsModule from "./credentials.js";
 import * as sdkModule from "./sdk.js";
@@ -146,6 +147,13 @@ describe("resolveMatrixConfig", () => {
       "default",
     );
   });
+
+  it("rejects insecure public http Matrix homeservers", () => {
+    expect(() => validateMatrixHomeserverUrl("http://matrix.example.org")).toThrow(
+      "Matrix homeserver must use https:// unless it targets a private or loopback host",
+    );
+    expect(validateMatrixHomeserverUrl("http://127.0.0.1:8008")).toBe("http://127.0.0.1:8008");
+  });
 });
 
 describe("resolveMatrixAuth", () => {
@@ -271,6 +279,21 @@ describe("resolveMatrixAuth", () => {
       deviceId: "CACHEDDEVICE",
     });
     expect(saveMatrixCredentialsMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects embedded credentials in Matrix homeserver URLs", async () => {
+    const cfg = {
+      channels: {
+        matrix: {
+          homeserver: "https://user:pass@matrix.example.org",
+          accessToken: "tok-123",
+        },
+      },
+    } as CoreConfig;
+
+    await expect(resolveMatrixAuth({ cfg, env: {} as NodeJS.ProcessEnv })).rejects.toThrow(
+      "Matrix homeserver URL must not include embedded credentials",
+    );
   });
 
   it("falls back to config deviceId when cached credentials are missing it", async () => {
